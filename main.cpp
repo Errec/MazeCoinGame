@@ -28,6 +28,7 @@ int main () {
   vector <vector<unsigned char> > groundCluster;
 
   strFileName = "maze.txt"; // TODO: accept user input cin >>
+
   readFile(mazeLength, mazeWidth, strFileName, groundCluster, inFile);
   findStart(mazeLength, mazeWidth, groundCluster, startPoint);
 
