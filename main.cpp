@@ -1,4 +1,3 @@
-// reading a text file
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -17,29 +16,35 @@ struct mapPoint {
 struct mazeMap {
   int mazeLength;
   int mazeWidth;
-  int forksToGo;  // number of paths nodes with entries yet to be explored.
   mapPoint startPoint;
   vector <vector<unsigned char> > groundCluster;
 };
 
 struct explorerNotes {
   bool foundCoin;
-  bool linkedToExitNode;
   int timesVisitedThisBlock;
-  vector <bool> blockUnexploredEntrances; // 0 0 0 0 -> N S E W
+  vector <bool> unexploredEntrances; // 0 0 0 0 -> N S E W
+  explorerNotes():timesVisitedThisBlock(0),unexploredEntrances(4,false){}
 };
 
 //  TODO: Simplify vector declarations using template
-void readFile(string,mazeMap &, ifstream &);//Function prototype for the reading the file function
+void readFile(string, mazeMap &, ifstream &);  //Function prototype for the reading the file function
 void findStart(mazeMap &); // function prototype to locate the maze spawn point tagged as 'i'.
 bool exploreMaze(mazeMap &, map<mapPoint, explorerNotes> &);
+void lookAround(mapPoint &, mazeMap &, explorerNotes &);
 
-int main () {
+const unsigned char COIN = 'm';
+const unsigned char ENTRANCE = 'i';
+const unsigned char EXIT = 's';
+const unsigned char FREEPATH = '.';
+const unsigned char WALL = '#';
+
+int main() {
 
   mazeMap myMaze;
   ifstream inFile; //Input file
   string strFileName; //File name
-  map<mapPoint, explorerNotes> explorerNotebook; //  explorerNotebook[{a,b}] = c;
+  map<mapPoint, explorerNotes> explorerNotebook;
   bool foundExit;
 
   strFileName = "maze.txt"; // TODO: accept user input cin >>
@@ -50,13 +55,13 @@ int main () {
 
   if(foundExit) {
     cout << "true" << endl;
- // TODO
+    // TODO: print required infos
   } else {
-    cout << "false" << endl;
-    // TODO
+      cout << "false" << endl;
+      // TODO: print required infos + maze without exit
   }
 
-// -------------------------------- remove this block when done --------------------------------------------------
+// ---------------------- remove this block when done ---------------------------
 
 for (int i = 0; i < myMaze.mazeLength; i++)
 {
@@ -74,7 +79,7 @@ cout << "startPoint(" << myMaze.startPoint.X << "," << myMaze.startPoint.Y << ")
     }
 */
 
-// -------------------------------- remove this block when done --------------------------------------------------
+// ---------------------- remove this block when done --------------------------
   return 0;
 }
 
@@ -108,7 +113,7 @@ void findStart(mazeMap &myMaze) {
   for (int x = 0; x < myMaze.mazeLength; x++)
   {
     for (int y = 0; y < myMaze.mazeWidth; y++) {
-      if(myMaze.groundCluster[x][y] == 'i') {
+      if(myMaze.groundCluster[x][y] == ENTRANCE) {
         myMaze.startPoint.X = x;
         myMaze.startPoint.Y = y;
         break;
@@ -118,8 +123,42 @@ void findStart(mazeMap &myMaze) {
 }
 
 bool exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook) {
+  // explorerNotebook[myMaze.startPoint] = //  add in nootebook the initial point and mark it as your first visited point.
   mapPoint currentPoint;
-  cout << myMaze.groundCluster[1][1] << endl;
+  explorerNotes currentNote;
+  bool done;
 
+  done = false;
+  currentPoint = myMaze.startPoint;
+
+  while(!done) {
+    lookAround(currentPoint,myMaze,currentNote);
+    explorerNotebook[currentPoint] = currentNote; // TODO: checar se ponto ja existe, caso sim atualize timesVisitedThisBlock++ e cheque nodos a serem explorados N S E W
+    // done = nextStep(currentPoint,myMaze,explorerNoteBook);
+  }
+
+  cout << "currentPoint(" << currentPoint.X << "," << currentPoint.Y << ")" << endl;
   return true;
+}
+
+void lookAround(mapPoint &currentPoint,mazeMap &myMaze,explorerNotes &currentNote) {
+  if(myMaze.groundCluster[currentPoint.X - 1][currentPoint.Y] != WALL &&
+      currentPoint.X > 0) {
+    currentNote.unexploredEntrances[0] = true;
+  }
+
+  if(myMaze.groundCluster[currentPoint.X + 1][currentPoint.Y] != WALL &&
+      currentPoint.X < myMaze.mazeWidth) {
+    currentNote.unexploredEntrances[1] = true;
+  }
+
+    if(myMaze.groundCluster[currentPoint.X][currentPoint.Y + 1] != WALL &&
+      currentPoint.X < myMaze.mazeLength) {
+    currentNote.unexploredEntrances[2] = true;
+  }
+
+    if(myMaze.groundCluster[currentPoint.X][currentPoint.Y - 1] != WALL &&
+      currentPoint.X > 0) {
+    currentNote.unexploredEntrances[3] = true;
+  }
 }
