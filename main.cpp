@@ -11,6 +11,14 @@ using namespace std;
 struct mapPoint {
   int X;
   int Y;
+
+  bool operator < (const mapPoint &coord) const {
+    if (X == coord.X && Y == coord.Y) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 };
 
 struct mazeMap {
@@ -23,7 +31,7 @@ struct mazeMap {
 struct explorerNotes {
   bool foundCoin;
   int timesVisitedThisBlock;
-  vector <bool> unexploredEntrances; // 0 0 0 0 -> N S E W
+  vector<bool> unexploredEntrances; // 0 0 0 0 -> N S E W
   explorerNotes():timesVisitedThisBlock(0),unexploredEntrances(4,false){}
 };
 
@@ -131,17 +139,84 @@ bool exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook
   done = false;
   currentPoint = myMaze.startPoint;
 
-  while(!done) {
+// teste V
+  explorerNotes testeNote1;
+  mapPoint testeCoord1;
+  explorerNotes testeNote2;
+  mapPoint testeCoord2;
+
+  testeNote1.foundCoin = true;
+  testeNote1.timesVisitedThisBlock = 33;
+  testeNote1.unexploredEntrances = {true, true, false, false};
+  testeCoord1.X = 25;
+  testeCoord1.Y = 3;
+
+  testeNote2.foundCoin = false;
+  testeNote2.timesVisitedThisBlock = 200;
+  testeNote2.unexploredEntrances = {false, true, false, false};
+  testeCoord2.X = 11;
+  testeCoord2.Y = 2;
+
+  explorerNotebook.insert(pair<mapPoint, explorerNotes>(testeCoord1, testeNote1));
+  explorerNotebook.insert(pair<mapPoint, explorerNotes>(testeCoord2, testeNote2));
+// teste ^
+
+  //while(!done) {
     lookAround(currentPoint,myMaze,currentNote);
-    explorerNotebook[currentPoint] = currentNote; // TODO: checar se ponto ja existe, caso sim atualize timesVisitedThisBlock++ e cheque nodos a serem explorados N S E W
+      explorerNotebook.insert(pair<mapPoint, explorerNotes>(currentPoint, currentNote));
+    //explorerNotebook[currentPoint] = currentNote;
     // done = nextStep(currentPoint,myMaze,explorerNoteBook);
+  //}
+
+/*
+  for(const auto &value : explorerNotebook) {
+    cout << value.foundCoin.first << " " << value.foundCoin.second.first << " " << value.foundCoin.second.second << "\n";
   }
+if(explorerNotebook.find(testeCoord1) == explorerNotebook.end()) {cout << "exite";}
+else {cout << "nao existe";}
+
+int testcount = 0;
+for(auto it = explorerNotebook.cbegin(); it != explorerNotebook.cend(); ++it)
+{
+    cout << "explorerNotebook("<< it->first.X << "," << it->first.Y << ")" << "\n";
+    cout << it->second.foundCoin << "\n";
+    cout << it->second.timesVisitedThisBlock << "\n";
+    cout << "(" << it->second.unexploredEntrances[0] << "," << it->second.unexploredEntrances[1] << "," << it->second.unexploredEntrances[2] << "," <<it->second.unexploredEntrances[3] << ")" << "\n";
+
+    testcount++;
+    cout << testcount << "\n";
+}
+*/
+
+map<mapPoint, explorerNotes>::iterator p;
+p = explorerNotebook.find(testeCoord1);
+cout << p->second.timesVisitedThisBlock << "teste" << endl;
+map<mapPoint, explorerNotes>::iterator q;
+q = explorerNotebook.find(testeCoord2);
+cout << q->second.timesVisitedThisBlock << "teste" << endl;
+map<mapPoint, explorerNotes>::iterator r;
+r = explorerNotebook.find(currentPoint);
+cout << r->second.timesVisitedThisBlock << "teste" << endl;
+
+
+if(explorerNotebook.find(testeCoord1) == explorerNotebook.end()) {cout << "exite1! ";}
+else {cout << "nao existe! ";}
+if(explorerNotebook.find(testeCoord2) == explorerNotebook.end()) {cout << "exite2! ";}
+else {cout << "nao existe! ";}
+if(explorerNotebook.find(currentPoint) == explorerNotebook.begin()) {cout << "exiteCurrent! ";}
+else {cout << "nao existe! ";}
 
   cout << "currentPoint(" << currentPoint.X << "," << currentPoint.Y << ")" << endl;
   return true;
 }
 
 void lookAround(mapPoint &currentPoint,mazeMap &myMaze,explorerNotes &currentNote) {
+  currentNote.timesVisitedThisBlock++;
+
+  if(myMaze.groundCluster[currentPoint.X][currentPoint.Y] == COIN){
+      currentNote.foundCoin = true;
+  }
+
   if(myMaze.groundCluster[currentPoint.X - 1][currentPoint.Y] != WALL &&
       currentPoint.X > 0) {
     currentNote.unexploredEntrances[0] = true;
