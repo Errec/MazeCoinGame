@@ -5,6 +5,7 @@
 #include <sstream>
 #include <map>
 #include <iterator>
+#include <stack>
 
 using namespace std;
 
@@ -13,9 +14,9 @@ struct mapPoint {
   int Y;
 
   bool operator < (const mapPoint &coord) const {
-    if (X == coord.X && Y == coord.Y) {
-      return true;
-    } else {
+    if (X < coord.X || (X == coord.X && Y < coord.Y)) {
+        return true;
+     } else {
       return false;
     }
   }
@@ -30,9 +31,10 @@ struct mazeMap {
 
 struct explorerNotes {
   bool foundCoin;
+  bool stacked;
   int timesVisitedThisBlock;
   vector<bool> unexploredEntrances; // 0 0 0 0 -> N S E W
-  explorerNotes():timesVisitedThisBlock(0),unexploredEntrances(4,false){}
+  explorerNotes():stacked(false),timesVisitedThisBlock(0),unexploredEntrances(4,false){}
 };
 
 //  TODO: Simplify vector declarations using template
@@ -40,6 +42,8 @@ void readFile(string, mazeMap &, ifstream &);  //Function prototype for the read
 void findStart(mazeMap &); // function prototype to locate the maze spawn point tagged as 'i'.
 bool exploreMaze(mazeMap &, map<mapPoint, explorerNotes> &);
 void lookAround(mapPoint &, mazeMap &, explorerNotes &);
+void stepIn(mapPoint &, map<mapPoint, explorerNotes> &, stack<mapPoint > &);
+//mapPoint nextStep(mazeMap &, map<mapPoint, explorerNotes> &);
 
 const unsigned char COIN = 'm';
 const unsigned char ENTRANCE = 'i';
@@ -70,7 +74,6 @@ int main() {
   }
 
 // ---------------------- remove this block when done ---------------------------
-
 for (int i = 0; i < myMaze.mazeLength; i++)
 {
   for (int j = 0; j < myMaze.mazeWidth; j++)
@@ -81,12 +84,6 @@ for (int i = 0; i < myMaze.mazeLength; i++)
 }
 
 cout << "startPoint(" << myMaze.startPoint.X << "," << myMaze.startPoint.Y << ")" << endl;
-
-/*    for (auto &x: noteBook) {
-            cout << "P(" << x.first[0] << "," << x.first[1] << ")" << " => " << x.second << '\n';
-    }
-*/
-
 // ---------------------- remove this block when done --------------------------
   return 0;
 }
@@ -131,109 +128,86 @@ void findStart(mazeMap &myMaze) {
 }
 
 bool exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook) {
-  // explorerNotebook[myMaze.startPoint] = //  add in nootebook the initial point and mark it as your first visited point.
   mapPoint currentPoint;
   explorerNotes currentNote;
   bool done;
+  map<mapPoint, explorerNotes>::iterator i;
+  int totalUnexploredEntrances;
+  stack<mapPoint > tracker;
+
+  currentPoint = myMaze.startPoint;
+  tracker.push(currentPoint);
+  currentNote.stacked = true;
 
   done = false;
-  currentPoint = myMaze.startPoint;
+  while(!done) {
+    i = explorerNotebook.find(currentPoint);
+    if (i->second.timesVisitedThisBlock == 0)
+    {
+      lookAround(currentPoint,myMaze,currentNote);
+      explorerNotebook[currentPoint] = currentNote;
+    }
 
-// teste V
-  explorerNotes testeNote1;
-  mapPoint testeCoord1;
-  explorerNotes testeNote2;
-  mapPoint testeCoord2;
+    i->second.timesVisitedThisBlock++;
+    totalUnexploredEntrances = i->second.unexploredEntrances[0] +
+                               i->second.unexploredEntrances[1] +
+                               i->second.unexploredEntrances[2] +
+                               i->second.unexploredEntrances[3];
 
-  testeNote1.foundCoin = true;
-  testeNote1.timesVisitedThisBlock = 33;
-  testeNote1.unexploredEntrances = {true, true, false, false};
-  testeCoord1.X = 25;
-  testeCoord1.Y = 3;
-
-  testeNote2.foundCoin = false;
-  testeNote2.timesVisitedThisBlock = 200;
-  testeNote2.unexploredEntrances = {false, true, false, false};
-  testeCoord2.X = 11;
-  testeCoord2.Y = 2;
-
-  explorerNotebook.insert(pair<mapPoint, explorerNotes>(testeCoord1, testeNote1));
-  explorerNotebook.insert(pair<mapPoint, explorerNotes>(testeCoord2, testeNote2));
-// teste ^
-
-  //while(!done) {
-    lookAround(currentPoint,myMaze,currentNote);
-      explorerNotebook.insert(pair<mapPoint, explorerNotes>(currentPoint, currentNote));
-    //explorerNotebook[currentPoint] = currentNote;
-    // done = nextStep(currentPoint,myMaze,explorerNoteBook);
-  //}
-
-/*
-  for(const auto &value : explorerNotebook) {
-    cout << value.foundCoin.first << " " << value.foundCoin.second.first << " " << value.foundCoin.second.second << "\n";
+    if((totalUnexploredEntrances == 0 && myMaze.groundCluster[currentPoint.X][currentPoint.Y] == ENTRANCE) ||
+                                         myMaze.groundCluster[currentPoint.X][currentPoint.Y] == EXIT) {
+      done = true;
+    } else {
+      if(totalUnexploredEntrances == 0) {
+        tracker.pop();
+      } else {
+        stepIn(currentPoint,explorerNotebook,tracker);
+      }
+    }
   }
-if(explorerNotebook.find(testeCoord1) == explorerNotebook.end()) {cout << "exite";}
-else {cout << "nao existe";}
-
-int testcount = 0;
-for(auto it = explorerNotebook.cbegin(); it != explorerNotebook.cend(); ++it)
-{
-    cout << "explorerNotebook("<< it->first.X << "," << it->first.Y << ")" << "\n";
-    cout << it->second.foundCoin << "\n";
-    cout << it->second.timesVisitedThisBlock << "\n";
-    cout << "(" << it->second.unexploredEntrances[0] << "," << it->second.unexploredEntrances[1] << "," << it->second.unexploredEntrances[2] << "," <<it->second.unexploredEntrances[3] << ")" << "\n";
-
-    testcount++;
-    cout << testcount << "\n";
-}
-*/
-
-map<mapPoint, explorerNotes>::iterator p;
-p = explorerNotebook.find(testeCoord1);
-cout << p->second.timesVisitedThisBlock << "teste" << endl;
-map<mapPoint, explorerNotes>::iterator q;
-q = explorerNotebook.find(testeCoord2);
-cout << q->second.timesVisitedThisBlock << "teste" << endl;
-map<mapPoint, explorerNotes>::iterator r;
-r = explorerNotebook.find(currentPoint);
-cout << r->second.timesVisitedThisBlock << "teste" << endl;
-
-
-if(explorerNotebook.find(testeCoord1) == explorerNotebook.end()) {cout << "exite1! ";}
-else {cout << "nao existe! ";}
-if(explorerNotebook.find(testeCoord2) == explorerNotebook.end()) {cout << "exite2! ";}
-else {cout << "nao existe! ";}
-if(explorerNotebook.find(currentPoint) == explorerNotebook.begin()) {cout << "exiteCurrent! ";}
-else {cout << "nao existe! ";}
-
-  cout << "currentPoint(" << currentPoint.X << "," << currentPoint.Y << ")" << endl;
   return true;
 }
 
-void lookAround(mapPoint &currentPoint,mazeMap &myMaze,explorerNotes &currentNote) {
-  currentNote.timesVisitedThisBlock++;
+void lookAround(mapPoint &currentPoint, mazeMap &myMaze, explorerNotes &currentNote, map<mapPoint, explorerNotes> &explorerNotebook) {
+    mapPoint N, S, E, W;
+    N.X = currentPoint.X - 1;
+    N.Y = currentPoint.Y;
+    S.X = currentPoint.X + 1;
+    S.Y = currentPoint.Y;
+    E.X = currentPoint.X;
+    E.Y = currentPoint.Y + 1;
+    W.X = currentPoint.X;
+    W.Y = currentPoint.Y - 1;
 
-  if(myMaze.groundCluster[currentPoint.X][currentPoint.Y] == COIN){
-      currentNote.foundCoin = true;
-  }
+    if(myMaze.groundCluster[currentPoint.X][currentPoint.Y] == COIN){
+        currentNote.foundCoin = true;
+    }
 
-  if(myMaze.groundCluster[currentPoint.X - 1][currentPoint.Y] != WALL &&
-      currentPoint.X > 0) {
+  if(myMaze.groundCluster[N.X][N.Y] != WALL &&
+     currentPoint.X > 0 &&
+     explorerNotebook.count(N) != 0) {
     currentNote.unexploredEntrances[0] = true;
   }
 
-  if(myMaze.groundCluster[currentPoint.X + 1][currentPoint.Y] != WALL &&
-      currentPoint.X < myMaze.mazeWidth) {
+  if(myMaze.groundCluster[S.X][S.Y] != WALL &&
+     currentPoint.X < myMaze.mazeWidth &&
+     explorerNotebook.count(S) != 0) {
     currentNote.unexploredEntrances[1] = true;
   }
 
-    if(myMaze.groundCluster[currentPoint.X][currentPoint.Y + 1] != WALL &&
-      currentPoint.X < myMaze.mazeLength) {
+  if(myMaze.groundCluster[E.X][E.Y] != WALL &&
+    currentPoint.X < myMaze.mazeLength &&
+    explorerNotebook.count(E) != 0) {
     currentNote.unexploredEntrances[2] = true;
   }
 
-    if(myMaze.groundCluster[currentPoint.X][currentPoint.Y - 1] != WALL &&
-      currentPoint.X > 0) {
+  if(myMaze.groundCluster[W.X][W.Y] != WALL &&
+    currentPoint.X > 0 &&
+    explorerNotebook.count(W) != 0) {
     currentNote.unexploredEntrances[3] = true;
   }
+}
+
+void stepIn(mapPoint &currentPoint, map<mapPoint, explorerNotes> &explorerNotebook, stack<mapPoint > &tracker) {
+
 }
