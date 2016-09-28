@@ -6,6 +6,7 @@
 #include <map>
 #include <iterator>
 #include <stack>
+#include <random>
 
 using namespace std;
 
@@ -34,16 +35,17 @@ struct explorerNotes {
   bool stacked;
   int timesVisitedThisBlock;
   vector<bool> unexploredEntrances; // 0 0 0 0 -> N S E W
-  explorerNotes():stacked(false),timesVisitedThisBlock(0),unexploredEntrances(4,false){}
+  explorerNotes():foundCoin(false),
+                  stacked(false),
+                  timesVisitedThisBlock(0),
+                  unexploredEntrances(4,false){}
 };
 
 //  TODO: Simplify vector declarations using template
 void readFile(string, mazeMap &, ifstream &);  //Function prototype for the reading the file function
 void findStart(mazeMap &); // function prototype to locate the maze spawn point tagged as 'i'.
 bool exploreMaze(mazeMap &, map<mapPoint, explorerNotes> &);
-void lookAround(mapPoint &, mazeMap &, explorerNotes &);
-void stepIn(mapPoint &, map<mapPoint, explorerNotes> &, stack<mapPoint > &);
-//mapPoint nextStep(mazeMap &, map<mapPoint, explorerNotes> &);
+void lookAround(mapPoint &, mazeMap &, explorerNotes &, map<mapPoint, explorerNotes> &);
 
 const unsigned char COIN = 'm';
 const unsigned char ENTRANCE = 'i';
@@ -99,7 +101,7 @@ void readFile(string strFileName,mazeMap &myMaze, ifstream &inFile) {
     getline(inFile,line);
     istringstream iss(line);
     iss >> myMaze.mazeLength >> myMaze.mazeWidth;
-
+    cout << "mazeLength = " << myMaze.mazeLength << ", mazeWidth = " << myMaze.mazeWidth << endl;
     while(getline (inFile,line))
     {
       for(int i = 0; i < line.length() - 1; ++i)
@@ -131,83 +133,127 @@ bool exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook
   mapPoint currentPoint;
   explorerNotes currentNote;
   bool done;
-  map<mapPoint, explorerNotes>::iterator i;
   int totalUnexploredEntrances;
+  map<mapPoint, explorerNotes>::iterator i;
   stack<mapPoint > tracker;
+  random_device rd;     // only used once to initialise (seed) engine
+  mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
+  uniform_int_distribution<int> uni(0,3); // guaranteed unbiased
+  auto random_integer = uni(rng);
 
   currentPoint = myMaze.startPoint;
   tracker.push(currentPoint);
   currentNote.stacked = true;
-
+  lookAround(currentPoint,myMaze,currentNote,explorerNotebook);
+  explorerNotebook[currentPoint] = currentNote;
   done = false;
+
   while(!done) {
     i = explorerNotebook.find(currentPoint);
-    if (i->second.timesVisitedThisBlock == 0)
-    {
-      lookAround(currentPoint,myMaze,currentNote);
-      explorerNotebook[currentPoint] = currentNote;
-    }
-
     i->second.timesVisitedThisBlock++;
     totalUnexploredEntrances = i->second.unexploredEntrances[0] +
                                i->second.unexploredEntrances[1] +
                                i->second.unexploredEntrances[2] +
                                i->second.unexploredEntrances[3];
-
+cout << "unexploredEntrances for P(" << currentPoint.X + 1<< "," << currentPoint.Y + 1<< ") : " << "[" <<
+i->second.unexploredEntrances[0] << "," << i->second.unexploredEntrances[1] << ","  << i->second.unexploredEntrances[2] <<
+"," << i->second.unexploredEntrances[3] << "]" << endl;
     if((totalUnexploredEntrances == 0 && myMaze.groundCluster[currentPoint.X][currentPoint.Y] == ENTRANCE) ||
                                          myMaze.groundCluster[currentPoint.X][currentPoint.Y] == EXIT) {
+                                                                      cout << "saida encontrada ou sem saida" << endl;
       done = true;
     } else {
-      if(totalUnexploredEntrances == 0) {
-        tracker.pop();
-      } else {
-        stepIn(currentPoint,explorerNotebook,tracker);
+        if(totalUnexploredEntrances == 0) {
+          currentPoint = tracker.top();
+          tracker.pop();
+          i->second.stacked = false;
+        } else {
+            do {
+              random_integer = uni(rng);
+            } while (i->second.unexploredEntrances[random_integer] == 0);
+                                                      cout << "choose coord:" << random_integer + 1<< endl;
+            switch(random_integer) {
+              case 0:
+                currentPoint.X =  currentPoint.X - 1;
+                i->second.unexploredEntrances[0] = false;
+              break;
+
+              case 1:
+                currentPoint.X =  currentPoint.X + 1;
+                i->second.unexploredEntrances[1] = false;
+              break;
+
+              case 2:
+                currentPoint.Y =  currentPoint.Y + 1;
+                i->second.unexploredEntrances[2] = false;
+              break;
+
+              case 3:
+                currentPoint.Y =  currentPoint.Y - 1;
+                i->second.unexploredEntrances[3] = false;
+              break;
+            }
+
+            tracker.push(currentPoint);
+            if (explorerNotebook.count(currentPoint) == 0) {
+              lookAround(currentPoint,myMaze,currentNote,explorerNotebook);
+              explorerNotebook[currentPoint] = currentNote;
+                                                          cout<<"Key does not exist"<<endl;
+            } else {
+              i->second.stacked = true;
+                                                                        cout<<"Key exist"<<endl;
+            }
+          }
       }
-    }
   }
   return true;
 }
 
 void lookAround(mapPoint &currentPoint, mazeMap &myMaze, explorerNotes &currentNote, map<mapPoint, explorerNotes> &explorerNotebook) {
-    mapPoint N, S, E, W;
-    N.X = currentPoint.X - 1;
-    N.Y = currentPoint.Y;
-    S.X = currentPoint.X + 1;
-    S.Y = currentPoint.Y;
-    E.X = currentPoint.X;
-    E.Y = currentPoint.Y + 1;
-    W.X = currentPoint.X;
-    W.Y = currentPoint.Y - 1;
+  mapPoint N, S, E, W;
+  N.X = currentPoint.X - 1;
+  N.Y = currentPoint.Y;
+  S.X = currentPoint.X + 1;
+  S.Y = currentPoint.Y;
+  E.X = currentPoint.X;
+  E.Y = currentPoint.Y + 1;
+  W.X = currentPoint.X;
+  W.Y = currentPoint.Y - 1;
 
-    if(myMaze.groundCluster[currentPoint.X][currentPoint.Y] == COIN){
-        currentNote.foundCoin = true;
-    }
-
-  if(myMaze.groundCluster[N.X][N.Y] != WALL &&
-     currentPoint.X > 0 &&
-     explorerNotebook.count(N) != 0) {
+  if(currentPoint.X > 0 &&
+     myMaze.groundCluster[N.X][N.Y] != WALL &&
+     explorerNotebook.count(N) == 0) {
     currentNote.unexploredEntrances[0] = true;
+  } else {
+        currentNote.unexploredEntrances[0] = false;
   }
 
-  if(myMaze.groundCluster[S.X][S.Y] != WALL &&
-     currentPoint.X < myMaze.mazeWidth &&
-     explorerNotebook.count(S) != 0) {
+  if(currentPoint.X < myMaze.mazeLength - 1 &&
+     myMaze.groundCluster[S.X][S.Y] != WALL &&
+     explorerNotebook.count(S) == 0) {
     currentNote.unexploredEntrances[1] = true;
+  } else {
+        currentNote.unexploredEntrances[1] = false;
   }
 
-  if(myMaze.groundCluster[E.X][E.Y] != WALL &&
-    currentPoint.X < myMaze.mazeLength &&
-    explorerNotebook.count(E) != 0) {
+  if(currentPoint.Y < myMaze.mazeWidth - 1 &&
+     myMaze.groundCluster[E.X][E.Y] != WALL &&
+     explorerNotebook.count(E) == 0) {
     currentNote.unexploredEntrances[2] = true;
+  } else {
+        currentNote.unexploredEntrances[2] = false;
   }
 
-  if(myMaze.groundCluster[W.X][W.Y] != WALL &&
-    currentPoint.X > 0 &&
-    explorerNotebook.count(W) != 0) {
+  if(currentPoint.Y > 0 &&
+     myMaze.groundCluster[W.X][W.Y] != WALL &&
+     explorerNotebook.count(W) == 0) {
     currentNote.unexploredEntrances[3] = true;
+  } else {
+        currentNote.unexploredEntrances[3] = false;
   }
-}
 
-void stepIn(mapPoint &currentPoint, map<mapPoint, explorerNotes> &explorerNotebook, stack<mapPoint > &tracker) {
-
+  if(myMaze.groundCluster[currentPoint.X][currentPoint.Y] == COIN){
+    currentNote.foundCoin = true;
+  }
+  currentNote.stacked = true;
 }
