@@ -7,14 +7,16 @@
 #include <iterator>
 #include <stack>
 #include <random>
+#include <unistd.h>
+#include <cstdlib>
 
 using namespace std;
 
-struct mapPoint {
+struct coord {
   int X;
   int Y;
 
-  bool operator < (const mapPoint &coord) const {
+  bool operator < (const coord &coord) const {
     if (X < coord.X || (X == coord.X && Y < coord.Y)) {
         return true;
      } else {
@@ -23,99 +25,89 @@ struct mapPoint {
   }
 };
 
-struct mazeMap {
+struct maze {
+  int mazeHeight;
   int mazeLength;
-  int mazeWidth;
-  mapPoint startPoint;
-  vector <vector<unsigned char> > groundCluster;
+  coord startPoint;
+  vector <vector<unsigned char> > mazeMap;
 };
 
-struct explorerNotes {
+struct pointIformation {
   bool foundCoin;
-  bool stacked;
-  int timesVisitedThisBlock;
+  bool inStack;
+  int coordCheckins;
   vector<bool> unexploredEntrances; // 0 0 0 0 -> N S E W
-  explorerNotes():foundCoin(false),
-                  stacked(false),
-                  timesVisitedThisBlock(0),
+  pointIformation():foundCoin(false),
+                  inStack(false),
+                  coordCheckins(0),
                   unexploredEntrances(4,false){}
 };
 
-void readFile(string, mazeMap &, ifstream &);  //Function prototype for the reading the file function
-void findStart(mazeMap &); // function prototype to locate the maze spawn point tagged as 'i'.
-void exploreMaze(mazeMap &, map<mapPoint, explorerNotes> &, stack<mapPoint > &);
-void lookAround(mapPoint &, mazeMap &, explorerNotes &, map<mapPoint, explorerNotes> &);
-void writeSummary(mazeMap &, map<mapPoint, explorerNotes> &, stack<mapPoint > &);
+void readMap(string, maze &);  //Function prototype for the reading the file function
+void exploreMaze(maze &, map<coord, pointIformation> &, stack<coord > &);
+void lookAround(coord &, maze &, pointIformation &, map<coord, pointIformation> &);
+void writeSummary(string, maze &, map<coord, pointIformation> &, stack<coord > &);
+void printMaze(maze &, coord &);
 
 const unsigned char COIN = 'm';
-const unsigned char ENTRANCE = 'i';
+const unsigned char START = 'i';
 const unsigned char EXIT = 's';
 const unsigned char FREEPATH = '.';
 const unsigned char WALL = '#';
 
 int main() {
+  maze myMaze;
+  map<coord, pointIformation> explorerNotebook;
+  stack<coord > tracker;
+  string strFileName = "maze.txt"; // TODO: accept user input cin >>
 
-  mazeMap myMaze;
-  ifstream inFile; //Input file
-  string strFileName; //File name
-  map<mapPoint, explorerNotes> explorerNotebook;
-  stack<mapPoint > tracker;
-
-  strFileName = "maze.txt"; // TODO: accept user input cin >>
-
-  readFile(strFileName, myMaze, inFile);
-  findStart(myMaze);
+  readMap(strFileName, myMaze);
   exploreMaze(myMaze, explorerNotebook, tracker);
-  writeSummary(myMaze,explorerNotebook, tracker);
+  writeSummary(strFileName, myMaze,explorerNotebook, tracker);
 
   return 0;
 }
 
-void readFile(string strFileName, mazeMap &myMaze, ifstream &inFile) {
-
+void readMap(string strFileName,maze &myMaze) {
+  ifstream inFile;
   vector<unsigned char> tempVector;
   string line;
+  int j;
 
   inFile.open(strFileName.c_str());
   if (inFile.is_open())
   {
     getline(inFile,line);
     istringstream iss(line);
-    iss >> myMaze.mazeLength >> myMaze.mazeWidth;
+    iss >> myMaze.mazeHeight >> myMaze.mazeLength;
 
+    j = 0;
     while(getline (inFile,line))
     {
-      for(int i = 0; i < line.length() - 1; ++i)
+      for(int i = 0; i < myMaze.mazeLength; i++)
       {
         tempVector.push_back(line[i]);
+        if (line[i] == START)
+        {
+          myMaze.startPoint.X = i;
+          myMaze.startPoint.Y = j;
+        }
       }
-      myMaze.groundCluster.push_back(tempVector);
+      myMaze.mazeMap.push_back(tempVector);
       tempVector.clear();
+      j++;
     }
     inFile.close();
   }
   else cout << "Unable to open file";
 }
 
-void findStart(mazeMap &myMaze) {
-  for (int x = 0; x < myMaze.mazeLength; x++)
-  {
-    for (int y = 0; y < myMaze.mazeWidth; y++) {
-      if(myMaze.groundCluster[x][y] == ENTRANCE) {
-        myMaze.startPoint.X = x;
-        myMaze.startPoint.Y = y;
-        break;
-      }
-    }
-  }
-}
-
-void exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook, stack<mapPoint> &tracker) {
-  mapPoint currentPoint;
-  explorerNotes initialNote;
+void exploreMaze(maze &myMaze, map<coord, pointIformation> &explorerNotebook, stack<coord> &tracker) {
+  coord currentPoint;
+  pointIformation initialNote;
   bool done;
   int totalUnexploredEntrances;
-  map<mapPoint, explorerNotes>::iterator i;
+  map<coord, pointIformation>::iterator i;
   random_device rd;     // only used once to initialise (seed) engine
   mt19937 rng(rd());    // random-number engine used (Mersenne-Twister in this case)
   uniform_int_distribution<int> uni(0,3); // guaranteed unbiased
@@ -123,29 +115,28 @@ void exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook
 
   currentPoint = myMaze.startPoint;
   tracker.push(currentPoint);
-  initialNote.stacked = true;
   lookAround(currentPoint,myMaze,initialNote,explorerNotebook);
   explorerNotebook[currentPoint] = initialNote;
   done = false;
-                                    int p = 0;
+
   while(!done) {
-                                    p++;
-                                    cout << "Passo " << p << ": "<< tracker.top().X + 1 << ","<< tracker.top().Y + 1<< endl;
+    printMaze(myMaze,currentPoint);
+
     i = explorerNotebook.find(currentPoint);
-    i->second.timesVisitedThisBlock++;
+    i->second.coordCheckins++;
     totalUnexploredEntrances = i->second.unexploredEntrances[0] +
                                i->second.unexploredEntrances[1] +
                                i->second.unexploredEntrances[2] +
                                i->second.unexploredEntrances[3];
 
-    if((totalUnexploredEntrances == 0 && myMaze.groundCluster[currentPoint.X][currentPoint.Y] == ENTRANCE) ||
-                                         myMaze.groundCluster[currentPoint.X][currentPoint.Y] == EXIT) {
+    if((totalUnexploredEntrances == 0 && myMaze.mazeMap[currentPoint.X][currentPoint.Y] == START) ||
+                                         myMaze.mazeMap[currentPoint.X][currentPoint.Y] == EXIT) {
       done = true;
     } else {
         if(totalUnexploredEntrances == 0) {
           tracker.pop();
-          i->second.stacked = false;
           currentPoint = tracker.top();
+          i->second.inStack = false;
         } else {
             do {
               random_integer = uni(rng);
@@ -172,22 +163,48 @@ void exploreMaze(mazeMap &myMaze, map<mapPoint, explorerNotes> &explorerNotebook
                 i->second.unexploredEntrances[3] = false;
               break;
             }
-
             tracker.push(currentPoint);
             if (explorerNotebook.count(currentPoint) == 0) {
-              explorerNotes newNote;
+              pointIformation newNote;
               lookAround(currentPoint,myMaze,newNote,explorerNotebook);
               explorerNotebook[currentPoint] = newNote;
             } else {
-              i->second.stacked = true;
+              i->second.inStack = true;
             }
           }
       }
   }
 }
 
-void lookAround(mapPoint &currentPoint, mazeMap &myMaze, explorerNotes &currentNote, map<mapPoint, explorerNotes> &explorerNotebook) {
-  mapPoint N, S, E, W;
+void printMaze(maze &myMaze,coord &currentPoint) {
+  unsigned int microseconds = 50000;
+  unsigned char tempChar;
+  const unsigned char EXPLORER = '*';
+  system("clear");
+  cout << "\n\t\t\t Maze Explorer - Random Search\n\n";
+  cout << " Maze Size: "<< myMaze.mazeHeight << "x" << myMaze.mazeLength << endl;
+  cout << " i: Start  s: Exit  m: Coin  .:Free path  #: Wall\n\n";
+  for (int i = 0; i < myMaze.mazeHeight; i++)
+  {
+    for (int j = 0; j < myMaze.mazeLength; j++)
+    {
+      cout << " ";
+      if (i == currentPoint.X && j == currentPoint.Y)
+      {
+        tempChar = myMaze.mazeMap[i][j];
+        myMaze.mazeMap[i][j] = EXPLORER;
+      }
+      cout << myMaze.mazeMap[i][j];
+    }
+    cout << endl;
+  }
+  cout << endl;
+    usleep(microseconds);
+          myMaze.mazeMap[currentPoint.X][currentPoint.Y] = tempChar;
+}
+
+void lookAround(coord &currentPoint, maze &myMaze, pointIformation &currentNote, map<coord, pointIformation> &explorerNotebook) {
+  coord N, S, E, W;
   N.X = currentPoint.X - 1;
   N.Y = currentPoint.Y;
   S.X = currentPoint.X + 1;
@@ -197,74 +214,84 @@ void lookAround(mapPoint &currentPoint, mazeMap &myMaze, explorerNotes &currentN
   W.X = currentPoint.X;
   W.Y = currentPoint.Y - 1;
 
-  /*  if(N.X >= 0 &&
-       myMaze.groundCluster[N.X][N.Y] != WALL &&
-       explorerNotebook.count(N) == 0) {
-      currentNote.unexploredEntrances[0] = true;
-      if(myMaze.groundCluster[N.X][N.Y] == EXIT) {
-        currentNote.exitPoint = N;
-        currentNote.foundExit = true;
-      }
-    }*/
-
   if (N.X >= 0) {
-    if (myMaze.groundCluster[N.X][N.Y] != WALL &&
+    if (myMaze.mazeMap[N.X][N.Y] != WALL &&
      explorerNotebook.count(N) == 0) {
      currentNote.unexploredEntrances[0] = true;
     }
   }
 
-  if (S.X < myMaze.mazeLength) {
-    if (myMaze.groundCluster[S.X][S.Y] != WALL &&
+  if (S.X < myMaze.mazeHeight) {
+    if (myMaze.mazeMap[S.X][S.Y] != WALL &&
      explorerNotebook.count(S) == 0) {
      currentNote.unexploredEntrances[1] = true;
     }
   }
 
-  if (E.Y < myMaze.mazeWidth) {
-    if (myMaze.groundCluster[E.X][E.Y] != WALL &&
+  if (E.Y < myMaze.mazeLength) {
+    if (myMaze.mazeMap[E.X][E.Y] != WALL &&
      explorerNotebook.count(E) == 0) {
      currentNote.unexploredEntrances[2] = true;
     }
   }
 
   if (W.Y >= 0) {
-    if (myMaze.groundCluster[W.X][W.Y] != WALL &&
+    if (myMaze.mazeMap[W.X][W.Y] != WALL &&
      explorerNotebook.count(W) == 0) {
      currentNote.unexploredEntrances[3] = true;
     }
   }
 
-  if(myMaze.groundCluster[currentPoint.X][currentPoint.Y] == COIN){
+  currentNote.inStack = true;
+  if(myMaze.mazeMap[currentPoint.X][currentPoint.Y] == COIN){
     currentNote.foundCoin = true;
   }
-
-  currentNote.stacked = true;
 }
 
-void writeSummary(mazeMap &myMaze, map<mapPoint, explorerNotes> & explorerNotebook, stack<mapPoint> &tracker) {
+void writeSummary(string strFileName, maze &myMaze, map<coord, pointIformation> & explorerNotebook, stack<coord> &tracker) {
   int stepsToExit = 0;
   int totalSteps = 0;
   int coinsToExit = 0;
   int totalCoins = 0;
 
   for(auto it = explorerNotebook.cbegin(); it != explorerNotebook.cend(); ++it) {
-    totalSteps += it->second.timesVisitedThisBlock;
+    totalSteps += it->second.coordCheckins;
     totalCoins += it->second.foundCoin;
-    if(it->second.stacked == true) {
-      stepsToExit += it->second.timesVisitedThisBlock;
+    if(it->second.inStack == true) {
+      stepsToExit += it->second.coordCheckins;
       coinsToExit += it->second.foundCoin;
     }
   }
 
   cout << totalSteps << " passos no total\n";
   cout << totalCoins << " moedas no total\n";
-  if(myMaze.groundCluster[tracker.top().X][tracker.top().Y] == ENTRANCE) {
-    cout << "saida nao existente" << endl;
+  if(myMaze.mazeMap[tracker.top().X][tracker.top().Y] == START) {
+    cout << "saida nao existente\n";
   } else {
       cout << stepsToExit << " passos ate a saida\n";
-      cout << coinsToExit << " moedas no caminho certo\n";
+      cout << coinsToExit << " moedas no caminho certo\n\n";
     }
 
-    cout << myMaze.mazeLength << "," << myMaze.mazeWidth << endl;
+  ofstream outputFile ("output_" + strFileName);
+  if (outputFile.is_open()) {
+    outputFile << totalSteps << " passos no total\n";
+    outputFile << totalCoins << " moedas no total\n";
+    if(myMaze.mazeMap[tracker.top().X][tracker.top().Y] == START) {
+      outputFile << "saida nao existente\n";
+      while (!tracker.empty()) {
+        outputFile << tracker.top().X << " " << tracker.top().X << endl;
+        tracker.pop();
+      }
+    } else {
+        outputFile << stepsToExit << " passos ate a saida\n";
+        outputFile << coinsToExit << " moedas no caminho certo\n";
+        while (!tracker.empty()) {
+          outputFile << tracker.top().X << " " << tracker.top().Y << endl;
+          tracker.pop();
+        }
+    }
+    cout << "output_" << strFileName << " file saved.\n\n";
+  } else {
+    cout << "Unable to open file";
+    }
 }
