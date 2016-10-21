@@ -43,7 +43,7 @@ struct maze {
   int mazeHeight;
   int mazeLength;
   coord startPoint;
-  vector <vector<unsigned char> > mazeMap;
+  vector <vector<unsigned char> > mazeMap;  // 2D vector to store the file chars
 };
 
 struct pointIformation {
@@ -65,13 +65,13 @@ void printMaze(maze &, coord &);
 inline stack<coord> reverseStack(stack<coord> &);
 
 /*
- * Specific characters of the maze file components
+ * Specific characters of the maze input file format
  */
-const unsigned char COIN = 'm';
-const unsigned char START = 'i';
-const unsigned char EXIT = 's';
+const unsigned char COIN     = 'm';
+const unsigned char START    = 'i';
+const unsigned char EXIT     = 's';
 const unsigned char FREEPATH = '.';
-const unsigned char WALL = '#';
+const unsigned char WALL     = '#';
 
 int main() {
   string strFileName;
@@ -88,7 +88,7 @@ int main() {
   /*
    * While the file does not open display error message and asks for another file name
   */
-  while (stat(strFileName.c_str(), &buf) == -1) {
+  while (stat(strFileName.c_str(), &buf) == -1) { // verify if the file name exists
     system("clear");
     cout << "\n\t\t\tMaze Explorer - Random Search mt19937 Engine\n\n";
     cout << " Error: File Not Found.\n ";
@@ -105,6 +105,7 @@ int main() {
 
 /* This function opens a .txt file with the specific maze format to store
  * the content in a 2D char vector
+ * f(n) = O(n^2)
  */
 void readMap(string strFileName, ifstream &inFile, maze &myMaze) {
   vector<unsigned char> tempVector; // store the chars of the string line
@@ -144,6 +145,7 @@ void readMap(string strFileName, ifstream &inFile, maze &myMaze) {
  * The function analyses each position using the map information updating the coordinate according
  * the neighbors coordinate configuration. The call to select the next position is made using random
  * library. The function loops until theres no more free paths to go or the maze exit is found
+ * f(n) = O(n^3)
  */
 void exploreMaze(maze &myMaze, map<coord, pointIformation> &explorersDiary, stack<coord> &myTracker) {
   coord currentPoint;
@@ -166,17 +168,18 @@ void exploreMaze(maze &myMaze, map<coord, pointIformation> &explorersDiary, stac
   while(!done) {
     printMaze(myMaze,currentPoint);
     it = explorersDiary.find(currentPoint); // used to iterate trough the map elements
-    // verify if a position is free to move. E.g.: one free position: unexploredPath == {0,0,1,0}
+    // verify if a position is free to move. E.g.: one free position on north: unexploredPath == {1,0,0,0}
     int sumUnexplorePaths = it->second.unexploredPath[0] +
                             it->second.unexploredPath[1] +
                             it->second.unexploredPath[2] +
                             it->second.unexploredPath[3];
 
-    if((sumUnexplorePaths == 0 && myMaze.mazeMap[currentPoint.X][currentPoint.Y] == START) ||
-                                  myMaze.mazeMap[currentPoint.X][currentPoint.Y] == EXIT) {
+    if((sumUnexplorePaths == 0 &&
+        myMaze.mazeMap[currentPoint.X][currentPoint.Y] == START) ||
+        myMaze.mazeMap[currentPoint.X][currentPoint.Y] == EXIT) {
       done = true;
     } else {
-      // no more positions to go on? Then pop() back
+      // no more positions to go on? Then pop() back to the last position
         if(sumUnexplorePaths == 0) {
           myTracker.pop();
           currentPoint = myTracker.top();
@@ -225,6 +228,7 @@ void exploreMaze(maze &myMaze, map<coord, pointIformation> &explorersDiary, stac
 /* This function receives a maze struct and the current coordinate of exploreMaze() function's loop iteration
  * then update the character of that point to '*', representing the explorer. The function clean the current screen for
  * each iteration using system() and prints the updated maze within a interval of time using sleep()
+ * f(n) = O(n^2)
  */
 void printMaze(maze &myMaze,coord &currentPoint) {
   unsigned int microseconds = 45000;
@@ -249,13 +253,14 @@ void printMaze(maze &myMaze,coord &currentPoint) {
     cout << endl;
   }
   cout << endl;
-    usleep(microseconds);
-    myMaze.mazeMap[currentPoint.X][currentPoint.Y] = tempChar;
+  usleep(microseconds);
+  myMaze.mazeMap[currentPoint.X][currentPoint.Y] = tempChar;
 }
 
 /* This function receives and analyses the current point inside the exploreMaze() function's loop iteration then updates
  * the map element for that point: if the neighbor char was not yet visited and its != #, then the direction pointing
  * to that char is updated to true
+ * f(n) = O(1)
  */
 void lookAround(coord &currentPoint, maze &myMaze, pointIformation &currentNote, map<coord, pointIformation> &explorersDiary) {
   coord N, S, E, W; // North, South, East, West
@@ -272,25 +277,25 @@ void lookAround(coord &currentPoint, maze &myMaze, pointIformation &currentNote,
       myMaze.mazeMap[N.X][N.Y] != WALL &&
       explorersDiary.count(N) == 0) { // check if this neighbor point was already visited
      currentNote.unexploredPath[0] = true;
-    }
+  }
 
   if (S.X < myMaze.mazeHeight && // check the superior boundary
       myMaze.mazeMap[S.X][S.Y] != WALL &&
       explorersDiary.count(S) == 0) {
      currentNote.unexploredPath[1] = true;
-    }
+  }
 
   if (E.Y < myMaze.mazeLength &&
       myMaze.mazeMap[E.X][E.Y] != WALL &&
       explorersDiary.count(E) == 0) {
      currentNote.unexploredPath[2] = true;
-    }
+  }
 
   if (W.Y >= 0 &&
       myMaze.mazeMap[W.X][W.Y] != WALL &&
       explorersDiary.count(W) == 0) {
      currentNote.unexploredPath[3] = true;
-    }
+  }
 
   currentNote.inStack = true;
   currentNote.coordCheckins++;
@@ -298,14 +303,16 @@ void lookAround(coord &currentPoint, maze &myMaze, pointIformation &currentNote,
     currentNote.foundCoin = true;
   }
 }
+
 /* This function prints the maze running results on console and creates a .txt file containing the correct paths
  * coordinates
+ * f(n) = O(n^2)
  */
 void writeSummary(string strFileName, maze &myMaze, map<coord, pointIformation> & explorersDiary, stack<coord> &myTracker) {
   int stepsToExit = 0;
-  int totalSteps = 0;
+  int totalSteps  = 0;
   int coinsToExit = 0;
-  int totalCoins = 0;
+  int totalCoins  = 0;
 
   stepsToExit = myTracker.size();
 
@@ -317,27 +324,13 @@ void writeSummary(string strFileName, maze &myMaze, map<coord, pointIformation> 
     }
   }
 
-  cout << " "<< strFileName << " Solved!\n\n ";
-  cout << totalSteps << " passos no total\n ";
-  cout << totalCoins << " moedas no total\n ";
-  if(myMaze.mazeMap[myTracker.top().X][myTracker.top().Y] == START) {
-    cout << "saida nao existente\n ";
-  } else {
-      cout << stepsToExit << " passos ate a saida\n ";
-      cout << coinsToExit << " moedas no caminho certo\n\n ";
-    }
-
-  ofstream outputFile ("output_" + strFileName);
+  string newFileName = "output_" + strFileName;
+  ofstream outputFile (newFileName);
   if (outputFile.is_open()) {
     outputFile << totalSteps << " passos no total\n";
     outputFile << totalCoins << " moedas no total\n";
     if(myMaze.mazeMap[myTracker.top().X][myTracker.top().Y] == START) {
       outputFile << "saida nao existente\n";
-      myTracker = reverseStack(myTracker);
-      while (!myTracker.empty()) {
-        outputFile << myTracker.top().X << " " << myTracker.top().X << endl;
-        myTracker.pop();
-      }
     } else {
         outputFile << stepsToExit << " passos ate a saida\n";
         outputFile << coinsToExit << " moedas no caminho certo\n";
@@ -347,20 +340,37 @@ void writeSummary(string strFileName, maze &myMaze, map<coord, pointIformation> 
           myTracker.pop();
         }
     }
-    cout << "Summary file output_" << strFileName << " saved.\n\n";
   } else {
     cout << "Unable to open file";
     }
   outputFile.close();
+
+  // Print results on console
+  ifstream inFile;
+  inFile.open(newFileName.c_str());
+  if (inFile.is_open())
+  {
+    string line;
+    int count = 0;
+    while (getline(inFile,line) && count < 4) {
+      cout << line << endl ;
+      count++;
+    }
+    cout << "\nSummary file " << newFileName << " saved.\n\n";
+  } else {
+    cout << "Unable to open file";
+    }
+  inFile.close();
 }
 
 /*
  * This function receives the paths coordinates stack and reverses it returning the reversed stack
+ * f(n) = O(n)
  */
 inline stack<coord> reverseStack(stack<coord> &myTracker) {
   stack<coord> tempStack;
   while (!myTracker.empty()) {
-    tempStack.push(myTracker.top());
+    tempStack.push(myTracker.top());  // f(n) = O(1) - source: http://www.cs.northwestern.edu/~riesbeck/programming/c++/stl-summary.html#stack
     myTracker.pop();
   }
   return tempStack;
